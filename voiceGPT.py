@@ -2,72 +2,75 @@ from openai import OpenAI # ChatGPT
 import speech_recognition as sr # Google speech-to-text
 from gtts import gTTS # Google text-to-speach
 import os
-import pygame.mixer # Ootusmusiikin soittoa varten
+import pygame.mixer # For background music
 
+# Initializing OpenAI client and speech recognizer:
 client = OpenAI()
 r = sr.Recognizer()
 
-# Herätesanat/-lauseet:
+# Wake words/phrases:
 wake_word = "tarvitsen apua"
 exit_word = "voitte poistua"
 
-# Muutetaan teksti puheeksi Googlen text-to-speach avulla:
+# Convert text to speech using Google text-to-speech:
 def speak(text):
     tts = gTTS(text=text, lang='fi') 
     tts.save('response.mp3')
     os.system('mpg321 response.mp3')
 
-# Lähetetään kysymys OpenAI:lle/ChatGPT:lle tekstinä ja palautetaan vastaus:
+# Send question to OpenAI/ChatGPT as text and get response:
 def ask_question(question):
 
-    # Lisätään kysymyksen alkuun lyhyt ohjeistus ChatGPT:lle:
+    # Add a short instruction to ChatGPT before the question:
     start_question = "Vastaa lyhyesti ja hauskasti, max 3 lauseella, seuraavaan: "
     question = start_question + question
 
-    # Odotusmusiikki päälle
+    # Play waiting music:
     pygame.init()
     pygame.mixer.init()
     pygame.mixer.music.load("waitmusic.mp3")
     pygame.mixer.music.play()
 
+    # Get completion from ChatGPT:
     completion = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "system", "content": question}] ,
         max_tokens=150
         )
     
-    # Odotusmusiikki pois
+    # Stop waiting music:
     pygame.mixer.music.stop()
     pygame.quit()
     
-    # ChatGPT:n vastausteksti puheeksi:
+    # Convert ChatGPT's response to speech:
     print(completion.choices[0].message.content)
     speak(completion.choices[0].message.content)
     speak("Toivottavasti tämä auttoi. Jos tarvitset taas minua, hihkaise: TARVITSEN APUA.")
 
 
-# Kuunnellaan kysymys ja muunnetaan tekstiksi:
+# Listen to command and convert it to text:
 def listen_command():
     speak("Mitä haluat tietää?")
 
-    # Kuunnellaan mikrofonista audio
+    # Listen for audio from microphone:
     with sr.Microphone(device_index=8) as source:
         audio = r.listen(source)
 
-        # Toistetaan kysymys ja lähetetään se tekstinä ask_question-funktiolle
         try:
-            # Odotusmusiikki päälle
+            # Play waiting music:
             pygame.init()
             pygame.mixer.init()
             pygame.mixer.music.load("waitmusic.mp3")
             pygame.mixer.music.play()
 
+            # Convert audio to text:
             text = r.recognize_google(audio, language="fi-FI")
 
-            # Odotusmusiikki pois
+            # Stop waiting music:
             pygame.mixer.music.stop()
             pygame.quit()
 
+            # Repeat the command and send it to ask_question function:
             speak("Kysyit {}".format(text))
             ask_question(text)
         except Exception as e:
@@ -75,21 +78,21 @@ def listen_command():
             speak("Anteeksi - nyt kävi moka.")
 
 
-# Odotetaan herätesanaa:
+# Listen for wake word:
 def listen_wakeword():
     speak("Olen valmis auttamaan. Jos haluat kysyä minulta jotain, hihkaise TARVITSEN APUA. Jos minulle ei ole juuri nyt käyttöä, sano VOITTE POISTUA.")
     while True:
         
-        # Kuunnellaan mikrofonia:
+        # Listen for microphone input:
         with sr.Microphone(device_index=8) as source:
             print("Listening for the wake up word...")
             audio = r.listen(source)
 
             try:
-                # Audio tekstiksi:
+                # Convert audio to text:
                 text = r.recognize_google(audio, language="fi-FI").lower()
         
-                # Tarkastetaan, löytyykö heräte- tai poistumiskäskyä:
+                # Check for wake or exit command:
                 if wake_word in text:
                     speak("Kutsuitte Valtias?")
                     listen_command() 
@@ -97,8 +100,9 @@ def listen_wakeword():
                     speak("Nöyrä alamaisenne kiittää ja menee nyt lataamaan akkuja...")
                     break
             except sr.UnknownValueError:
-                pass  # Ohitetaan, jos puhetta ei havaita
+                pass  # Ignore if no speech is detected
             except sr.RequestError as e:
                 print("Could not request results from Google Speech Recognition service; {0}".format(e))
 
+# # Start listening for the wake word:
 listen_wakeword()
